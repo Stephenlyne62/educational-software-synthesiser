@@ -1,0 +1,15 @@
+Builds/
+JuceLibraryCode/
+.vs/
+*.sdf
+*.suo
+*.user
+*.VC.db
+*.pdb
+*.obj
+*.log
+*.exe
+*.ilk
+x64/
+Debug/
+Release/

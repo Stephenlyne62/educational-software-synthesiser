@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="RSBuJx" name="TestJuiceApp2" projectType="guiapp" useAppConfig="0"
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1">
+  <MAINGROUP id="eyZOJd" name="TestJuiceApp2">
+    <GROUP id="{4C40768A-7FE3-B325-2809-4CBE308C1977}" name="Source">
+      <FILE id="KiDOl9" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
+      <FILE id="oTcdXd" name="MainComponent.h" compile="0" resource="0" file="Source/MainComponent.h"/>
+      <FILE id="q0a555" name="MainComponent.cpp" compile="1" resource="0"
+            file="Source/MainComponent.cpp"/>
+    </GROUP>
+  </MAINGROUP>
+  <MODULES>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+  </MODULES>
+  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1"/>
+  <EXPORTFORMATS>
+    <VS2026 targetFolder="Builds/VisualStudio2026">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="TestJuiceApp2"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="TestJuiceApp2"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_core" path="../../Users/lynes/Downloads/juce-8.0.13-windows/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../Users/lynes/Downloads/juce-8.0.13-windows/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../Users/lynes/Downloads/juce-8.0.13-windows/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../Users/lynes/Downloads/juce-8.0.13-windows/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../Users/lynes/Downloads/juce-8.0.13-windows/JUCE/modules"/>
+      </MODULEPATHS>
+    </VS2026>
+  </EXPORTFORMATS>
+</JUCERPROJECT>
