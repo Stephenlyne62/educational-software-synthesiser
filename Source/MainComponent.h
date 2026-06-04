@@ -27,6 +27,12 @@ private:
     double currentAngle = 0.0;
     double angleDelta = 0.0;
 
+    juce::Slider frequencySlider;
+    juce::Label frequencyLabel;
+
+    juce::Slider volumeSlider;
+    juce::Label volumeLabel;
+
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };
