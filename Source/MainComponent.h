@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include <vector>
+#include "Oscillator.h"
 
 class MainComponent : public juce::AudioAppComponent,
     public juce::MidiInputCallback,
@@ -12,7 +13,7 @@ public:
     MainComponent();
     ~MainComponent() override;
 
-    void paint(juce::Graphics&) override;
+    void paint(juce::Graphics& g) override;
     void resized() override;
 
     void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override;
@@ -67,9 +68,15 @@ private:
     juce::Label midiInputLabel;
 
     juce::MidiKeyboardState keyboardState;
-    juce::MidiKeyboardComponent keyboardComponent{ keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard };
+    juce::MidiKeyboardComponent keyboardComponent
+    {
+        keyboardState,
+        juce::MidiKeyboardComponent::horizontalKeyboard
+    };
 
     std::unique_ptr<juce::MidiInput> midiInput;
+
+    Oscillator oscillator;
 
     float filterStateLeft = 0.0f;
     float filterStateRight = 0.0f;

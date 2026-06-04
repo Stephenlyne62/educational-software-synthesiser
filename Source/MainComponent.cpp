@@ -12,10 +12,7 @@ MainComponent::MainComponent()
     frequencySlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 80, 20);
     frequencySlider.onValueChange = [this]
         {
-            auto frequency = frequencySlider.getValue();
-
-            if (currentSampleRate > 0.0)
-                angleDelta = frequency * 2.0 * juce::MathConstants<double>::pi / currentSampleRate;
+            oscillator.setFrequency(frequencySlider.getValue());
         };
     addAndMakeVisible(frequencySlider);
 
@@ -37,6 +34,10 @@ MainComponent::MainComponent()
     waveformSelector.addItem("Saw", 3);
     waveformSelector.addItem("Triangle", 4);
     waveformSelector.setSelectedId(1);
+    waveformSelector.onChange = [this]
+        {
+            oscillator.setWaveform(waveformSelector.getSelectedId());
+        };
     addAndMakeVisible(waveformSelector);
 
     waveformLabel.setText("Waveform", juce::dontSendNotification);
@@ -93,6 +94,12 @@ MainComponent::MainComponent()
     powerButton.onClick = [this]
         {
             noteOn = powerButton.getToggleState();
+
+            if (noteOn)
+            {
+                oscillator.setFrequency(frequencySlider.getValue());
+                oscillator.setWaveform(waveformSelector.getSelectedId());
+            }
         };
     addAndMakeVisible(powerButton);
 
@@ -135,7 +142,7 @@ MainComponent::MainComponent()
 
     setAudioChannels(0, 2);
 
-    startTimerHz(30);
+    startTimerHz(60);
 }
 
 MainComponent::~MainComponent()
@@ -151,8 +158,9 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate
 {
     currentSampleRate = sampleRate;
 
-    auto frequency = frequencySlider.getValue();
-    angleDelta = frequency * 2.0 * juce::MathConstants<double>::pi / currentSampleRate;
+    oscillator.setSampleRate(sampleRate);
+    oscillator.setFrequency(frequencySlider.getValue());
+    oscillator.setWaveform(waveformSelector.getSelectedId());
 
     filterStateLeft = 0.0f;
     filterStateRight = 0.0f;
@@ -169,35 +177,7 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
 
     for (auto sample = 0; sample < bufferToFill.numSamples; ++sample)
     {
-        float oscillatorValue = 0.0f;
-
-        auto phase = currentAngle / (2.0 * juce::MathConstants<double>::pi);
-
-        while (phase >= 1.0)
-            phase -= 1.0;
-
-        switch (waveformSelector.getSelectedId())
-        {
-        case 1:
-            oscillatorValue = (float)std::sin(currentAngle);
-            break;
-
-        case 2:
-            oscillatorValue = phase < 0.5 ? 1.0f : -1.0f;
-            break;
-
-        case 3:
-            oscillatorValue = (float)((2.0 * phase) - 1.0);
-            break;
-
-        case 4:
-            oscillatorValue = (float)(4.0 * std::abs(phase - 0.5) - 1.0);
-            break;
-
-        default:
-            oscillatorValue = (float)std::sin(currentAngle);
-            break;
-        }
+        auto oscillatorValue = oscillator.getNextSample();
 
         auto attackTime = (float)attackSlider.getValue();
         auto releaseTime = (float)releaseSlider.getValue();
@@ -226,8 +206,6 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
         filterStateLeft = filterStateLeft + filterAmount * (rawSample - filterStateLeft);
         filterStateRight = filterStateRight + filterAmount * (rawSample - filterStateRight);
 
-        currentAngle += angleDelta;
-
         leftBuffer[sample] = filterStateLeft;
 
         if (rightBuffer != nullptr)
@@ -255,6 +233,7 @@ void MainComponent::handleNoteOn(juce::MidiKeyboardState* source,
     float velocity)
 {
     setFrequencyFromMidiNote(midiNoteNumber);
+
     noteOn = true;
     powerButton.setToggleState(true, juce::dontSendNotification);
 }
@@ -273,9 +252,8 @@ void MainComponent::setFrequencyFromMidiNote(int midiNoteNumber)
     auto frequency = juce::MidiMessage::getMidiNoteInHertz(midiNoteNumber);
 
     frequencySlider.setValue(frequency, juce::dontSendNotification);
-
-    if (currentSampleRate > 0.0)
-        angleDelta = frequency * 2.0 * juce::MathConstants<double>::pi / currentSampleRate;
+    oscillator.setFrequency(frequency);
+    oscillator.setWaveform(waveformSelector.getSelectedId());
 }
 
 //==============================================================================
@@ -291,7 +269,7 @@ void MainComponent::paint(juce::Graphics& g)
 
     g.setFont(juce::FontOptions(18.0f));
     g.setColour(juce::Colours::white);
-    g.drawText("First JUCE Synth - Oscilloscope Prototype",
+    g.drawText("First JUCE Synth - Object-Oriented Oscillator Prototype",
         getLocalBounds().removeFromTop(45),
         juce::Justification::centred,
         true);
