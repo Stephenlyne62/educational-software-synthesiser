@@ -123,6 +123,14 @@ MainComponent::MainComponent()
     pluckPresetButton.onClick = [this] { applyPreset(4); };
     addAndMakeVisible(pluckPresetButton);
 
+    savePresetButton.setButtonText("Save");
+    savePresetButton.onClick = [this] { savePreset(); };
+    addAndMakeVisible(savePresetButton);
+
+    loadPresetButton.setButtonText("Load");
+    loadPresetButton.onClick = [this] { loadPreset(); };
+    addAndMakeVisible(loadPresetButton);
+
     midiInputList.addItem("No MIDI Input", 1);
 
     auto midiInputs = juce::MidiInput::getAvailableDevices();
@@ -189,10 +197,8 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate
         );
     }
 
-
     filterStateLeft = 0.0f;
     filterStateRight = 0.0f;
-    envelopeLevel = 1.0f;
 }
 
 void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill)
@@ -226,17 +232,12 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
 
         auto rawSample = oscillatorValue * (float)volumeSlider.getValue();
 
-        auto filterAmount = (float)filterSlider.getValue();
-
-        filterStateLeft = filterStateLeft + filterAmount * (rawSample - filterStateLeft);
-        filterStateRight = filterStateRight + filterAmount * (rawSample - filterStateRight);
-
-        leftBuffer[sample] = filterStateLeft;
+        leftBuffer[sample] = rawSample;
 
         if (rightBuffer != nullptr)
-            rightBuffer[sample] = filterStateRight;
+            rightBuffer[sample] = rawSample;
 
-        waveformBuffer[(size_t)waveformBufferIndex] = filterStateLeft;
+        waveformBuffer[(size_t)waveformBufferIndex] = rawSample;
         waveformBufferIndex = (waveformBufferIndex + 1) % (int)waveformBuffer.size();
     }
 }
@@ -272,6 +273,7 @@ void MainComponent::handleNoteOn(juce::MidiKeyboardState* source,
             (float)releaseSlider.getValue()
         );
 
+        voice->setFilterCutoff((float)filterSlider.getValue());
         voice->startNote(midiNoteNumber, frequency);
     }
 
@@ -368,6 +370,48 @@ void MainComponent::applyPreset(int presetNumber)
     }
 }
 
+void MainComponent::savePreset()
+{
+    auto preset = std::make_unique<juce::DynamicObject>();
+
+    preset->setProperty("waveform", waveformSelector.getSelectedId());
+    preset->setProperty("volume", volumeSlider.getValue());
+    preset->setProperty("filter", filterSlider.getValue());
+    preset->setProperty("attack", attackSlider.getValue());
+    preset->setProperty("decay", decaySlider.getValue());
+    preset->setProperty("sustain", sustainSlider.getValue());
+    preset->setProperty("release", releaseSlider.getValue());
+
+    juce::var presetVar(preset.release());
+
+    auto file = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
+        .getChildFile("MySynthPreset.json");
+
+    file.replaceWithText(juce::JSON::toString(presetVar));
+}
+
+void MainComponent::loadPreset()
+{
+    auto file = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
+        .getChildFile("MySynthPreset.json");
+
+    if (!file.existsAsFile())
+        return;
+
+    auto json = juce::JSON::parse(file);
+
+    if (auto* object = json.getDynamicObject())
+    {
+        waveformSelector.setSelectedId((int)object->getProperty("waveform"));
+        volumeSlider.setValue((double)object->getProperty("volume"));
+        filterSlider.setValue((double)object->getProperty("filter"));
+        attackSlider.setValue((double)object->getProperty("attack"));
+        decaySlider.setValue((double)object->getProperty("decay"));
+        sustainSlider.setValue((double)object->getProperty("sustain"));
+        releaseSlider.setValue((double)object->getProperty("release"));
+    }
+}
+
 //==============================================================================
 void MainComponent::timerCallback()
 {
@@ -381,7 +425,7 @@ void MainComponent::paint(juce::Graphics& g)
 
     g.setFont(juce::FontOptions(18.0f));
     g.setColour(juce::Colours::white);
-    g.drawText("First JUCE Synth - ADSR Voice Prototype",
+    g.drawText("First JUCE Synth - Save / Load Preset Prototype",
         getLocalBounds().removeFromTop(45),
         juce::Justification::centred,
         true);
@@ -437,6 +481,9 @@ void MainComponent::resized()
     leadPresetButton.setBounds(410, 435, 90, 30);
     padPresetButton.setBounds(510, 435, 90, 30);
     pluckPresetButton.setBounds(610, 435, 90, 30);
+
+    savePresetButton.setBounds(710, 435, 70, 30);
+    loadPresetButton.setBounds(790, 435, 70, 30);
 
     midiInputList.setBounds(170, 485, 420, 30);
 

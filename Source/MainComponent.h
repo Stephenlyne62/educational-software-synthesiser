@@ -2,8 +2,10 @@
 
 #include <JuceHeader.h>
 #include <vector>
+
 #include "Oscillator.h"
 #include "Voice.h"
+#include "LFO.h"
 
 class MainComponent : public juce::AudioAppComponent,
     public juce::MidiInputCallback,
@@ -38,8 +40,12 @@ public:
 
 private:
     double currentSampleRate = 0.0;
-    double currentAngle = 0.0;
-    double angleDelta = 0.0;
+
+    juce::TextButton savePresetButton;
+    juce::TextButton loadPresetButton;
+
+    void savePreset();
+    void loadPreset();
 
     juce::TextButton bassPresetButton;
     juce::TextButton leadPresetButton;
@@ -51,6 +57,14 @@ private:
 
     juce::Slider volumeSlider;
     juce::Label volumeLabel;
+
+    juce::Slider lfoRateSlider;
+    juce::Slider lfoDepthSlider;
+
+    juce::Label lfoRateLabel;
+    juce::Label lfoDepthLabel;
+
+    LFO lfo;
 
     juce::ComboBox waveformSelector;
     juce::Label waveformLabel;
@@ -84,12 +98,9 @@ private:
 
     std::unique_ptr<juce::MidiInput> midiInput;
 
-    Oscillator oscillator;
-
     float filterStateLeft = 0.0f;
     float filterStateRight = 0.0f;
 
-    float envelopeLevel = 0.0f;
     bool noteOn = false;
 
     std::vector<float> waveformBuffer;
