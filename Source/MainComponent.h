@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include <vector>
 #include "Oscillator.h"
+#include "Voice.h"
 
 class MainComponent : public juce::AudioAppComponent,
     public juce::MidiInputCallback,
@@ -40,6 +41,11 @@ private:
     double currentAngle = 0.0;
     double angleDelta = 0.0;
 
+    juce::TextButton bassPresetButton;
+    juce::TextButton leadPresetButton;
+    juce::TextButton padPresetButton;
+    juce::TextButton pluckPresetButton;
+
     juce::Slider frequencySlider;
     juce::Label frequencyLabel;
 
@@ -67,6 +73,8 @@ private:
     juce::ComboBox midiInputList;
     juce::Label midiInputLabel;
 
+    std::vector<Voice> voices;
+
     juce::MidiKeyboardState keyboardState;
     juce::MidiKeyboardComponent keyboardComponent
     {
@@ -88,6 +96,9 @@ private:
     int waveformBufferIndex = 0;
 
     void setFrequencyFromMidiNote(int midiNoteNumber);
+    Voice* findFreeVoice();
+
+    void applyPreset(int presetNumber);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

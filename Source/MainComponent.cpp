@@ -3,17 +3,14 @@
 //==============================================================================
 MainComponent::MainComponent()
 {
-    setSize(900, 780);
+    setSize(900, 820);
 
+    voices.resize(8);
     waveformBuffer.resize(512, 0.0f);
 
     frequencySlider.setRange(50.0, 2000.0, 1.0);
     frequencySlider.setValue(440.0);
     frequencySlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 80, 20);
-    frequencySlider.onValueChange = [this]
-        {
-            oscillator.setFrequency(frequencySlider.getValue());
-        };
     addAndMakeVisible(frequencySlider);
 
     frequencyLabel.setText("Frequency", juce::dontSendNotification);
@@ -21,7 +18,7 @@ MainComponent::MainComponent()
     addAndMakeVisible(frequencyLabel);
 
     volumeSlider.setRange(0.0, 1.0, 0.01);
-    volumeSlider.setValue(0.1);
+    volumeSlider.setValue(0.3);
     volumeSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 80, 20);
     addAndMakeVisible(volumeSlider);
 
@@ -34,10 +31,6 @@ MainComponent::MainComponent()
     waveformSelector.addItem("Saw", 3);
     waveformSelector.addItem("Triangle", 4);
     waveformSelector.setSelectedId(1);
-    waveformSelector.onChange = [this]
-        {
-            oscillator.setWaveform(waveformSelector.getSelectedId());
-        };
     addAndMakeVisible(waveformSelector);
 
     waveformLabel.setText("Waveform", juce::dontSendNotification);
@@ -45,7 +38,7 @@ MainComponent::MainComponent()
     addAndMakeVisible(waveformLabel);
 
     filterSlider.setRange(0.01, 1.0, 0.01);
-    filterSlider.setValue(0.2);
+    filterSlider.setValue(1.0);
     filterSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 80, 20);
     addAndMakeVisible(filterSlider);
 
@@ -97,11 +90,38 @@ MainComponent::MainComponent()
 
             if (noteOn)
             {
-                oscillator.setFrequency(frequencySlider.getValue());
-                oscillator.setWaveform(waveformSelector.getSelectedId());
+                voices[0].setEnvelopeParameters(
+                    (float)attackSlider.getValue(),
+                    (float)decaySlider.getValue(),
+                    (float)sustainSlider.getValue(),
+                    (float)releaseSlider.getValue()
+                );
+
+                voices[0].startNote(69, frequencySlider.getValue());
+            }
+            else
+            {
+                for (auto& voice : voices)
+                    voice.stopNote();
             }
         };
     addAndMakeVisible(powerButton);
+
+    bassPresetButton.setButtonText("Bass");
+    bassPresetButton.onClick = [this] { applyPreset(1); };
+    addAndMakeVisible(bassPresetButton);
+
+    leadPresetButton.setButtonText("Lead");
+    leadPresetButton.onClick = [this] { applyPreset(2); };
+    addAndMakeVisible(leadPresetButton);
+
+    padPresetButton.setButtonText("Pad");
+    padPresetButton.onClick = [this] { applyPreset(3); };
+    addAndMakeVisible(padPresetButton);
+
+    pluckPresetButton.setButtonText("Pluck");
+    pluckPresetButton.onClick = [this] { applyPreset(4); };
+    addAndMakeVisible(pluckPresetButton);
 
     midiInputList.addItem("No MIDI Input", 1);
 
@@ -158,13 +178,21 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate
 {
     currentSampleRate = sampleRate;
 
-    oscillator.setSampleRate(sampleRate);
-    oscillator.setFrequency(frequencySlider.getValue());
-    oscillator.setWaveform(waveformSelector.getSelectedId());
+    for (auto& voice : voices)
+    {
+        voice.setSampleRate(sampleRate);
+        voice.setEnvelopeParameters(
+            (float)attackSlider.getValue(),
+            (float)decaySlider.getValue(),
+            (float)sustainSlider.getValue(),
+            (float)releaseSlider.getValue()
+        );
+    }
+
 
     filterStateLeft = 0.0f;
     filterStateRight = 0.0f;
-    envelopeLevel = 0.0f;
+    envelopeLevel = 1.0f;
 }
 
 void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill)
@@ -177,29 +205,26 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
 
     for (auto sample = 0; sample < bufferToFill.numSamples; ++sample)
     {
-        auto oscillatorValue = oscillator.getNextSample();
+        float oscillatorValue = 0.0f;
 
-        auto attackTime = (float)attackSlider.getValue();
-        auto releaseTime = (float)releaseSlider.getValue();
-
-        if (noteOn)
+        for (auto& voice : voices)
         {
-            envelopeLevel += 1.0f / ((float)currentSampleRate * attackTime);
+            voice.setWaveform(waveformSelector.getSelectedId());
+            voice.setEnvelopeParameters(
+                (float)attackSlider.getValue(),
+                (float)decaySlider.getValue(),
+                (float)sustainSlider.getValue(),
+                (float)releaseSlider.getValue()
+            );
 
-            if (envelopeLevel > 1.0f)
-                envelopeLevel = 1.0f;
-        }
-        else
-        {
-            envelopeLevel -= 1.0f / ((float)currentSampleRate * releaseTime);
+            voice.setFilterCutoff((float)filterSlider.getValue());
 
-            if (envelopeLevel < 0.0f)
-                envelopeLevel = 0.0f;
+            oscillatorValue += voice.getNextSample();
         }
 
-        auto rawSample = oscillatorValue
-            * (float)volumeSlider.getValue()
-            * envelopeLevel;
+        oscillatorValue *= 0.5f;
+
+        auto rawSample = oscillatorValue * (float)volumeSlider.getValue();
 
         auto filterAmount = (float)filterSlider.getValue();
 
@@ -232,7 +257,23 @@ void MainComponent::handleNoteOn(juce::MidiKeyboardState* source,
     int midiNoteNumber,
     float velocity)
 {
-    setFrequencyFromMidiNote(midiNoteNumber);
+    auto frequency = juce::MidiMessage::getMidiNoteInHertz(midiNoteNumber);
+
+    frequencySlider.setValue(frequency, juce::dontSendNotification);
+
+    auto* voice = findFreeVoice();
+
+    if (voice != nullptr)
+    {
+        voice->setEnvelopeParameters(
+            (float)attackSlider.getValue(),
+            (float)decaySlider.getValue(),
+            (float)sustainSlider.getValue(),
+            (float)releaseSlider.getValue()
+        );
+
+        voice->startNote(midiNoteNumber, frequency);
+    }
 
     noteOn = true;
     powerButton.setToggleState(true, juce::dontSendNotification);
@@ -243,17 +284,88 @@ void MainComponent::handleNoteOff(juce::MidiKeyboardState* source,
     int midiNoteNumber,
     float velocity)
 {
-    noteOn = false;
-    powerButton.setToggleState(false, juce::dontSendNotification);
+    for (auto& voice : voices)
+    {
+        if (voice.getMidiNoteNumber() == midiNoteNumber)
+            voice.stopNote();
+    }
+
+    bool anyVoiceActive = false;
+
+    for (auto& voice : voices)
+    {
+        if (voice.isActive())
+            anyVoiceActive = true;
+    }
+
+    noteOn = anyVoiceActive;
+    powerButton.setToggleState(anyVoiceActive, juce::dontSendNotification);
 }
 
 void MainComponent::setFrequencyFromMidiNote(int midiNoteNumber)
 {
     auto frequency = juce::MidiMessage::getMidiNoteInHertz(midiNoteNumber);
-
     frequencySlider.setValue(frequency, juce::dontSendNotification);
-    oscillator.setFrequency(frequency);
-    oscillator.setWaveform(waveformSelector.getSelectedId());
+}
+
+Voice* MainComponent::findFreeVoice()
+{
+    for (auto& voice : voices)
+    {
+        if (!voice.isActive())
+            return &voice;
+    }
+
+    return &voices[0];
+}
+
+void MainComponent::applyPreset(int presetNumber)
+{
+    switch (presetNumber)
+    {
+    case 1: // Bass
+        waveformSelector.setSelectedId(2);
+        volumeSlider.setValue(0.45);
+        filterSlider.setValue(0.18);
+        attackSlider.setValue(0.005);
+        decaySlider.setValue(0.15);
+        sustainSlider.setValue(0.65);
+        releaseSlider.setValue(0.12);
+        break;
+
+    case 2: // Lead
+        waveformSelector.setSelectedId(3);
+        volumeSlider.setValue(0.35);
+        filterSlider.setValue(0.75);
+        attackSlider.setValue(0.01);
+        decaySlider.setValue(0.2);
+        sustainSlider.setValue(0.85);
+        releaseSlider.setValue(0.25);
+        break;
+
+    case 3: // Pad
+        waveformSelector.setSelectedId(4);
+        volumeSlider.setValue(0.3);
+        filterSlider.setValue(0.35);
+        attackSlider.setValue(1.2);
+        decaySlider.setValue(0.8);
+        sustainSlider.setValue(0.8);
+        releaseSlider.setValue(1.5);
+        break;
+
+    case 4: // Pluck
+        waveformSelector.setSelectedId(1);
+        volumeSlider.setValue(0.4);
+        filterSlider.setValue(0.6);
+        attackSlider.setValue(0.001);
+        decaySlider.setValue(0.1);
+        sustainSlider.setValue(0.25);
+        releaseSlider.setValue(0.08);
+        break;
+
+    default:
+        break;
+    }
 }
 
 //==============================================================================
@@ -269,12 +381,12 @@ void MainComponent::paint(juce::Graphics& g)
 
     g.setFont(juce::FontOptions(18.0f));
     g.setColour(juce::Colours::white);
-    g.drawText("First JUCE Synth - Object-Oriented Oscillator Prototype",
+    g.drawText("First JUCE Synth - ADSR Voice Prototype",
         getLocalBounds().removeFromTop(45),
         juce::Justification::centred,
         true);
 
-    auto scopeArea = juce::Rectangle<int>(80, 560, 760, 90);
+    auto scopeArea = juce::Rectangle<int>(80, 590, 760, 90);
 
     g.setColour(juce::Colours::black.withAlpha(0.35f));
     g.fillRect(scopeArea);
@@ -309,18 +421,24 @@ void MainComponent::paint(juce::Graphics& g)
 
 void MainComponent::resized()
 {
-    frequencySlider.setBounds(170, 70, 420, 35);
-    volumeSlider.setBounds(170, 115, 420, 35);
-    waveformSelector.setBounds(170, 165, 420, 30);
-    filterSlider.setBounds(170, 210, 420, 35);
+    frequencySlider.setBounds(170, 65, 420, 35);
+    volumeSlider.setBounds(170, 110, 420, 35);
+    waveformSelector.setBounds(170, 160, 420, 30);
+    filterSlider.setBounds(170, 205, 420, 35);
 
-    attackSlider.setBounds(170, 270, 420, 35);
-    decaySlider.setBounds(170, 315, 420, 35);
-    sustainSlider.setBounds(170, 360, 420, 35);
-    releaseSlider.setBounds(170, 405, 420, 35);
+    attackSlider.setBounds(170, 255, 420, 35);
+    decaySlider.setBounds(170, 300, 420, 35);
+    sustainSlider.setBounds(170, 345, 420, 35);
+    releaseSlider.setBounds(170, 390, 420, 35);
 
-    powerButton.setBounds(170, 455, 120, 30);
-    midiInputList.setBounds(170, 500, 420, 30);
+    powerButton.setBounds(170, 435, 120, 30);
 
-    keyboardComponent.setBounds(80, 675, 760, 75);
+    bassPresetButton.setBounds(310, 435, 90, 30);
+    leadPresetButton.setBounds(410, 435, 90, 30);
+    padPresetButton.setBounds(510, 435, 90, 30);
+    pluckPresetButton.setBounds(610, 435, 90, 30);
+
+    midiInputList.setBounds(170, 485, 420, 30);
+
+    keyboardComponent.setBounds(80, 705, 760, 75);
 }
