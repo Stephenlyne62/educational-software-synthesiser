@@ -26,6 +26,11 @@ public:
         filter.setCutoff(cutoff);
     }
 
+    void setFilterResonance(float resonance)
+    {
+        filter.setResonance(resonance);
+    }
+
     void setDetuneCents(float newDetuneCents)
     {
         detuneCents = newDetuneCents;
@@ -75,7 +80,11 @@ public:
         auto sampleA = oscillatorA.getNextSample();
         auto sampleB = oscillatorB.getNextSample();
 
-        auto mixedSample = ((sampleA + sampleB) * 0.5f) * envelopeValue;
+        auto noiseSample = (random.nextFloat() * 2.0f) - 1.0f;
+
+        auto oscillatorMix = (sampleA + sampleB) * 0.5f;
+        auto mixedSample = ((oscillatorMix * (1.0f - noiseAmount))
+            + (noiseSample * noiseAmount)) * envelopeValue;
 
         return filter.process(mixedSample);
     }
@@ -90,6 +99,11 @@ public:
         return midiNoteNumber;
     }
 
+    void setNoiseAmount(float newNoiseAmount)
+    {
+        noiseAmount = newNoiseAmount;
+    }
+
 private:
     Oscillator oscillatorA;
     Oscillator oscillatorB;
@@ -102,6 +116,8 @@ private:
     double baseFrequency = 440.0;
     float detuneCents = 5.0f;
     float pitchModulationCents = 0.0f;
+    float noiseAmount = 0.0f;
+    juce::Random random;
 
     void updateOscillatorFrequencies()
     {

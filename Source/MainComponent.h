@@ -67,6 +67,12 @@ private:
     juce::Label lfoRateLabel;
     juce::Label lfoDepthLabel;
 
+    juce::Slider reverbSlider;
+    juce::Label reverbLabel;
+
+    juce::Reverb reverb;
+    juce::Reverb::Parameters reverbParameters;
+
     LFO lfo;
 
     juce::ComboBox waveformSelector;
@@ -74,6 +80,11 @@ private:
 
     juce::Slider filterSlider;
     juce::Label filterLabel;
+
+    juce::Slider resonanceSlider;
+    juce::Label resonanceLabel;
+    juce::Slider noiseSlider;
+    juce::Label noiseLabel;
 
     juce::Slider attackSlider;
     juce::Slider decaySlider;
@@ -86,6 +97,8 @@ private:
     juce::Label releaseLabel;
 
     juce::ToggleButton powerButton;
+
+
 
     juce::ComboBox midiInputList;
     juce::Label midiInputLabel;

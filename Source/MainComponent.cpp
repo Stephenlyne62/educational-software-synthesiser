@@ -3,7 +3,7 @@
 //==============================================================================
 MainComponent::MainComponent()
 {
-    setSize(900, 980);
+    setSize(900, 1100);
 
     voices.resize(8);
     waveformBuffer.resize(512, 0.0f);
@@ -54,6 +54,24 @@ MainComponent::MainComponent()
     filterLabel.setText("Filter", juce::dontSendNotification);
     filterLabel.attachToComponent(&filterSlider, true);
     addAndMakeVisible(filterLabel);
+
+    resonanceSlider.setRange(0.0, 0.95, 0.01);
+    resonanceSlider.setValue(0.0);
+    resonanceSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 80, 20);
+    addAndMakeVisible(resonanceSlider);
+
+    resonanceLabel.setText("Resonance", juce::dontSendNotification);
+    resonanceLabel.attachToComponent(&resonanceSlider, true);
+    addAndMakeVisible(resonanceLabel);
+
+    noiseSlider.setRange(0.0, 1.0, 0.01);
+    noiseSlider.setValue(0.0);
+    noiseSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 80, 20);
+    addAndMakeVisible(noiseSlider);
+
+    noiseLabel.setText("Noise", juce::dontSendNotification);
+    noiseLabel.attachToComponent(&noiseSlider, true);
+    addAndMakeVisible(noiseLabel);
 
     attackSlider.setRange(0.001, 2.0, 0.001);
     attackSlider.setValue(0.05);
@@ -118,6 +136,15 @@ MainComponent::MainComponent()
     lfoTargetLabel.setText("LFO Target", juce::dontSendNotification);
     lfoTargetLabel.attachToComponent(&lfoTargetSelector, true);
     addAndMakeVisible(lfoTargetLabel);
+
+    reverbSlider.setRange(0.0, 1.0, 0.01);
+    reverbSlider.setValue(0.0);
+    reverbSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 80, 20);
+    addAndMakeVisible(reverbSlider);
+
+    reverbLabel.setText("Reverb", juce::dontSendNotification);
+    reverbLabel.attachToComponent(&reverbSlider, true);
+    addAndMakeVisible(reverbLabel);
 
     powerButton.setButtonText("Sound On");
     powerButton.setToggleState(false, juce::dontSendNotification);
@@ -226,6 +253,8 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate
     lfo.setSampleRate(sampleRate);
     lfo.setRate(lfoRateSlider.getValue());
 
+    reverb.reset();
+
     for (auto& voice : voices)
     {
         voice.setSampleRate(sampleRate);
@@ -288,6 +317,8 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
             );
 
             voice.setFilterCutoff(filterCutoff);
+            voice.setFilterResonance((float)resonanceSlider.getValue());
+            voice.setNoiseAmount((float)noiseSlider.getValue());
             voice.setDetuneCents((float)detuneSlider.getValue());
             voice.setPitchModulationCents(pitchModulationCents);
 
@@ -300,10 +331,25 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
             * (float)volumeSlider.getValue()
             * tremoloGain;
 
-        leftBuffer[sample] = rawSample;
+        reverbParameters.roomSize = (float)reverbSlider.getValue();
+        reverbParameters.wetLevel = (float)reverbSlider.getValue() * 0.35f;
+        reverbParameters.dryLevel = 1.0f - ((float)reverbSlider.getValue() * 0.25f);
+        reverbParameters.width = 1.0f;
+        reverbParameters.damping = 0.4f;
+
+        reverb.setParameters(reverbParameters);
+
+        float leftSample = rawSample;
+        float rightSample = rawSample;
+
+        reverb.processStereo(&leftSample, &rightSample, 1);
+
+        leftBuffer[sample] = leftSample;
 
         if (rightBuffer != nullptr)
-            rightBuffer[sample] = rawSample;
+            rightBuffer[sample] = rightSample;
+
+        waveformBuffer[(size_t)waveformBufferIndex] = leftSample;
 
         waveformBuffer[(size_t)waveformBufferIndex] = rawSample;
         waveformBufferIndex = (waveformBufferIndex + 1) % (int)waveformBuffer.size();
@@ -342,6 +388,8 @@ void MainComponent::handleNoteOn(juce::MidiKeyboardState* source,
         );
 
         voice->setFilterCutoff((float)filterSlider.getValue());
+        voice->setFilterResonance((float)resonanceSlider.getValue());
+        voice->setNoiseAmount((float)noiseSlider.getValue());
         voice->setDetuneCents((float)detuneSlider.getValue());
         voice->startNote(midiNoteNumber, frequency);
     }
@@ -398,6 +446,8 @@ void MainComponent::applyPreset(int presetNumber)
         waveformSelector.setSelectedId(2);
         volumeSlider.setValue(0.45);
         filterSlider.setValue(0.18);
+        resonanceSlider.setValue(0.55);
+        noiseSlider.setValue(0.02);
         attackSlider.setValue(0.005);
         decaySlider.setValue(0.15);
         sustainSlider.setValue(0.65);
@@ -412,6 +462,8 @@ void MainComponent::applyPreset(int presetNumber)
         waveformSelector.setSelectedId(3);
         volumeSlider.setValue(0.35);
         filterSlider.setValue(0.75);
+        resonanceSlider.setValue(0.35);
+        noiseSlider.setValue(0.00);
         attackSlider.setValue(0.01);
         decaySlider.setValue(0.2);
         sustainSlider.setValue(0.85);
@@ -426,6 +478,8 @@ void MainComponent::applyPreset(int presetNumber)
         waveformSelector.setSelectedId(4);
         volumeSlider.setValue(0.3);
         filterSlider.setValue(0.35);
+        noiseSlider.setValue(0.08);
+        resonanceSlider.setValue(0.15);
         attackSlider.setValue(1.2);
         decaySlider.setValue(0.8);
         sustainSlider.setValue(0.8);
@@ -440,6 +494,8 @@ void MainComponent::applyPreset(int presetNumber)
         waveformSelector.setSelectedId(1);
         volumeSlider.setValue(0.4);
         filterSlider.setValue(0.6);
+        noiseSlider.setValue(0.04);
+        resonanceSlider.setValue(0.45);
         attackSlider.setValue(0.001);
         decaySlider.setValue(0.1);
         sustainSlider.setValue(0.25);
@@ -523,7 +579,7 @@ void MainComponent::paint(juce::Graphics& g)
         juce::Justification::centred,
         true);
 
-    auto scopeArea = juce::Rectangle<int>(80, 745, 760, 90);
+    auto scopeArea = juce::Rectangle<int>(80, 790, 760, 90);
 
     g.setColour(juce::Colours::black.withAlpha(0.35f));
     g.fillRect(scopeArea);
@@ -563,27 +619,30 @@ void MainComponent::resized()
     detuneSlider.setBounds(170, 155, 420, 35);
     waveformSelector.setBounds(170, 205, 420, 30);
     filterSlider.setBounds(170, 250, 420, 35);
+    resonanceSlider.setBounds(170, 295, 420, 35);
+    noiseSlider.setBounds(170, 340, 420, 35);
 
-    attackSlider.setBounds(170, 300, 420, 35);
-    decaySlider.setBounds(170, 345, 420, 35);
-    sustainSlider.setBounds(170, 390, 420, 35);
-    releaseSlider.setBounds(170, 435, 420, 35);
+    attackSlider.setBounds(170, 345, 420, 35);
+    decaySlider.setBounds(170, 390, 420, 35);
+    sustainSlider.setBounds(170, 435, 420, 35);
+    releaseSlider.setBounds(170, 480, 420, 35);
 
     lfoRateSlider.setBounds(170, 485, 420, 35);
     lfoDepthSlider.setBounds(170, 530, 420, 35);
     lfoTargetSelector.setBounds(170, 575, 420, 30);
+    reverbSlider.setBounds(170, 620, 420, 35);
 
-    powerButton.setBounds(170, 625, 120, 30);
+    powerButton.setBounds(170, 670, 120, 30);
 
-    bassPresetButton.setBounds(310, 625, 90, 30);
-    leadPresetButton.setBounds(410, 625, 90, 30);
-    padPresetButton.setBounds(510, 625, 90, 30);
-    pluckPresetButton.setBounds(610, 625, 90, 30);
+    bassPresetButton.setBounds(310, 670, 90, 30);
+    leadPresetButton.setBounds(410, 670, 90, 30);
+    padPresetButton.setBounds(510, 670, 90, 30);
+    pluckPresetButton.setBounds(610, 670, 90, 30);
 
-    savePresetButton.setBounds(710, 625, 70, 30);
-    loadPresetButton.setBounds(790, 625, 70, 30);
+    savePresetButton.setBounds(710, 670, 70, 30);
+    loadPresetButton.setBounds(790, 670, 70, 30);
 
-    midiInputList.setBounds(170, 675, 420, 30);
+    midiInputList.setBounds(170, 720, 420, 30);
 
-    keyboardComponent.setBounds(80, 865, 760, 75);
+    keyboardComponent.setBounds(80, 910, 760, 75);
 }
