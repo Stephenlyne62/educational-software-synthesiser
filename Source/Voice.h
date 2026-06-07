@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 #include "Oscillator.h"
 #include "Envelope.h"
 #include "Filter.h"
@@ -24,13 +26,25 @@ public:
         filter.setCutoff(cutoff);
     }
 
+    void setDetuneCents(float newDetuneCents)
+    {
+        detuneCents = newDetuneCents;
+        updateOscillatorFrequencies();
+    }
+
+    void setPitchModulationCents(float newPitchModulationCents)
+    {
+        pitchModulationCents = newPitchModulationCents;
+        updateOscillatorFrequencies();
+    }
+
     void startNote(int newMidiNoteNumber, double frequency)
     {
         midiNoteNumber = newMidiNoteNumber;
+        baseFrequency = frequency;
         active = true;
 
-        oscillatorA.setFrequency(frequency);
-        oscillatorB.setFrequency(frequency * 1.005);
+        updateOscillatorFrequencies();
 
         filter.reset();
         envelope.noteOn();
@@ -84,4 +98,17 @@ private:
 
     bool active = false;
     int midiNoteNumber = -1;
+
+    double baseFrequency = 440.0;
+    float detuneCents = 5.0f;
+    float pitchModulationCents = 0.0f;
+
+    void updateOscillatorFrequencies()
+    {
+        auto pitchRatio = std::pow(2.0, pitchModulationCents / 1200.0);
+        auto detuneRatio = std::pow(2.0, detuneCents / 1200.0);
+
+        oscillatorA.setFrequency(baseFrequency * pitchRatio);
+        oscillatorB.setFrequency(baseFrequency * pitchRatio * detuneRatio);
+    }
 };

@@ -3,7 +3,7 @@
 //==============================================================================
 MainComponent::MainComponent()
 {
-    setSize(900, 820);
+    setSize(900, 980);
 
     voices.resize(8);
     waveformBuffer.resize(512, 0.0f);
@@ -25,6 +25,15 @@ MainComponent::MainComponent()
     volumeLabel.setText("Volume", juce::dontSendNotification);
     volumeLabel.attachToComponent(&volumeSlider, true);
     addAndMakeVisible(volumeLabel);
+
+    detuneSlider.setRange(0.0, 25.0, 0.1);
+    detuneSlider.setValue(5.0);
+    detuneSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 80, 20);
+    addAndMakeVisible(detuneSlider);
+
+    detuneLabel.setText("Detune", juce::dontSendNotification);
+    detuneLabel.attachToComponent(&detuneSlider, true);
+    addAndMakeVisible(detuneLabel);
 
     waveformSelector.addItem("Sine", 1);
     waveformSelector.addItem("Square", 2);
@@ -82,6 +91,34 @@ MainComponent::MainComponent()
     releaseLabel.attachToComponent(&releaseSlider, true);
     addAndMakeVisible(releaseLabel);
 
+    lfoRateSlider.setRange(0.1, 20.0, 0.1);
+    lfoRateSlider.setValue(5.0);
+    lfoRateSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 80, 20);
+    addAndMakeVisible(lfoRateSlider);
+
+    lfoRateLabel.setText("LFO Rate", juce::dontSendNotification);
+    lfoRateLabel.attachToComponent(&lfoRateSlider, true);
+    addAndMakeVisible(lfoRateLabel);
+
+    lfoDepthSlider.setRange(0.0, 1.0, 0.01);
+    lfoDepthSlider.setValue(0.0);
+    lfoDepthSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 80, 20);
+    addAndMakeVisible(lfoDepthSlider);
+
+    lfoDepthLabel.setText("LFO Depth", juce::dontSendNotification);
+    lfoDepthLabel.attachToComponent(&lfoDepthSlider, true);
+    addAndMakeVisible(lfoDepthLabel);
+
+    lfoTargetSelector.addItem("Volume", 1);
+    lfoTargetSelector.addItem("Pitch", 2);
+    lfoTargetSelector.addItem("Filter", 3);
+    lfoTargetSelector.setSelectedId(1);
+    addAndMakeVisible(lfoTargetSelector);
+
+    lfoTargetLabel.setText("LFO Target", juce::dontSendNotification);
+    lfoTargetLabel.attachToComponent(&lfoTargetSelector, true);
+    addAndMakeVisible(lfoTargetLabel);
+
     powerButton.setButtonText("Sound On");
     powerButton.setToggleState(false, juce::dontSendNotification);
     powerButton.onClick = [this]
@@ -97,6 +134,8 @@ MainComponent::MainComponent()
                     (float)releaseSlider.getValue()
                 );
 
+                voices[0].setFilterCutoff((float)filterSlider.getValue());
+                voices[0].setDetuneCents((float)detuneSlider.getValue());
                 voices[0].startNote(69, frequencySlider.getValue());
             }
             else
@@ -132,7 +171,6 @@ MainComponent::MainComponent()
     addAndMakeVisible(loadPresetButton);
 
     midiInputList.addItem("No MIDI Input", 1);
-
     auto midiInputs = juce::MidiInput::getAvailableDevices();
 
     for (int i = 0; i < midiInputs.size(); ++i)
@@ -169,7 +207,6 @@ MainComponent::MainComponent()
     addAndMakeVisible(keyboardComponent);
 
     setAudioChannels(0, 2);
-
     startTimerHz(60);
 }
 
@@ -186,6 +223,9 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate
 {
     currentSampleRate = sampleRate;
 
+    lfo.setSampleRate(sampleRate);
+    lfo.setRate(lfoRateSlider.getValue());
+
     for (auto& voice : voices)
     {
         voice.setSampleRate(sampleRate);
@@ -195,10 +235,8 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate
             (float)sustainSlider.getValue(),
             (float)releaseSlider.getValue()
         );
+        voice.setDetuneCents((float)detuneSlider.getValue());
     }
-
-    filterStateLeft = 0.0f;
-    filterStateRight = 0.0f;
 }
 
 void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill)
@@ -213,9 +251,35 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
     {
         float oscillatorValue = 0.0f;
 
+        lfo.setRate(lfoRateSlider.getValue());
+
+        auto lfoValue = lfo.getNextValue();
+        auto lfoNormalised = (lfoValue + 1.0f) * 0.5f;
+
+        auto lfoDepth = (float)lfoDepthSlider.getValue();
+        auto selectedTarget = lfoTargetSelector.getSelectedId();
+
+        float tremoloGain = 1.0f;
+        float pitchModulationCents = 0.0f;
+        float filterCutoff = (float)filterSlider.getValue();
+
+        if (selectedTarget == 1)
+        {
+            tremoloGain = 1.0f - (lfoDepth * lfoNormalised);
+        }
+        else if (selectedTarget == 2)
+        {
+            pitchModulationCents = lfoValue * lfoDepth * 50.0f;
+        }
+        else if (selectedTarget == 3)
+        {
+            filterCutoff = juce::jlimit(0.01f, 1.0f, filterCutoff + (lfoValue * lfoDepth * 0.5f));
+        }
+
         for (auto& voice : voices)
         {
             voice.setWaveform(waveformSelector.getSelectedId());
+
             voice.setEnvelopeParameters(
                 (float)attackSlider.getValue(),
                 (float)decaySlider.getValue(),
@@ -223,14 +287,18 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                 (float)releaseSlider.getValue()
             );
 
-            voice.setFilterCutoff((float)filterSlider.getValue());
+            voice.setFilterCutoff(filterCutoff);
+            voice.setDetuneCents((float)detuneSlider.getValue());
+            voice.setPitchModulationCents(pitchModulationCents);
 
             oscillatorValue += voice.getNextSample();
         }
 
         oscillatorValue *= 0.5f;
 
-        auto rawSample = oscillatorValue * (float)volumeSlider.getValue();
+        auto rawSample = oscillatorValue
+            * (float)volumeSlider.getValue()
+            * tremoloGain;
 
         leftBuffer[sample] = rawSample;
 
@@ -274,6 +342,7 @@ void MainComponent::handleNoteOn(juce::MidiKeyboardState* source,
         );
 
         voice->setFilterCutoff((float)filterSlider.getValue());
+        voice->setDetuneCents((float)detuneSlider.getValue());
         voice->startNote(midiNoteNumber, frequency);
     }
 
@@ -325,7 +394,7 @@ void MainComponent::applyPreset(int presetNumber)
 {
     switch (presetNumber)
     {
-    case 1: // Bass
+    case 1:
         waveformSelector.setSelectedId(2);
         volumeSlider.setValue(0.45);
         filterSlider.setValue(0.18);
@@ -333,9 +402,13 @@ void MainComponent::applyPreset(int presetNumber)
         decaySlider.setValue(0.15);
         sustainSlider.setValue(0.65);
         releaseSlider.setValue(0.12);
+        lfoRateSlider.setValue(4.0);
+        lfoDepthSlider.setValue(0.15);
+        lfoTargetSelector.setSelectedId(3);
+        detuneSlider.setValue(3.0);
         break;
 
-    case 2: // Lead
+    case 2:
         waveformSelector.setSelectedId(3);
         volumeSlider.setValue(0.35);
         filterSlider.setValue(0.75);
@@ -343,9 +416,13 @@ void MainComponent::applyPreset(int presetNumber)
         decaySlider.setValue(0.2);
         sustainSlider.setValue(0.85);
         releaseSlider.setValue(0.25);
+        lfoRateSlider.setValue(5.5);
+        lfoDepthSlider.setValue(0.2);
+        lfoTargetSelector.setSelectedId(2);
+        detuneSlider.setValue(8.0);
         break;
 
-    case 3: // Pad
+    case 3:
         waveformSelector.setSelectedId(4);
         volumeSlider.setValue(0.3);
         filterSlider.setValue(0.35);
@@ -353,9 +430,13 @@ void MainComponent::applyPreset(int presetNumber)
         decaySlider.setValue(0.8);
         sustainSlider.setValue(0.8);
         releaseSlider.setValue(1.5);
+        lfoRateSlider.setValue(0.8);
+        lfoDepthSlider.setValue(0.25);
+        lfoTargetSelector.setSelectedId(3);
+        detuneSlider.setValue(14.0);
         break;
 
-    case 4: // Pluck
+    case 4:
         waveformSelector.setSelectedId(1);
         volumeSlider.setValue(0.4);
         filterSlider.setValue(0.6);
@@ -363,6 +444,10 @@ void MainComponent::applyPreset(int presetNumber)
         decaySlider.setValue(0.1);
         sustainSlider.setValue(0.25);
         releaseSlider.setValue(0.08);
+        lfoRateSlider.setValue(8.0);
+        lfoDepthSlider.setValue(0.1);
+        lfoTargetSelector.setSelectedId(1);
+        detuneSlider.setValue(1.0);
         break;
 
     default:
@@ -381,6 +466,10 @@ void MainComponent::savePreset()
     preset->setProperty("decay", decaySlider.getValue());
     preset->setProperty("sustain", sustainSlider.getValue());
     preset->setProperty("release", releaseSlider.getValue());
+    preset->setProperty("lfoRate", lfoRateSlider.getValue());
+    preset->setProperty("lfoDepth", lfoDepthSlider.getValue());
+    preset->setProperty("lfoTarget", lfoTargetSelector.getSelectedId());
+    preset->setProperty("detune", detuneSlider.getValue());
 
     juce::var presetVar(preset.release());
 
@@ -409,6 +498,10 @@ void MainComponent::loadPreset()
         decaySlider.setValue((double)object->getProperty("decay"));
         sustainSlider.setValue((double)object->getProperty("sustain"));
         releaseSlider.setValue((double)object->getProperty("release"));
+        lfoRateSlider.setValue((double)object->getProperty("lfoRate"));
+        lfoDepthSlider.setValue((double)object->getProperty("lfoDepth"));
+        lfoTargetSelector.setSelectedId((int)object->getProperty("lfoTarget"));
+        detuneSlider.setValue((double)object->getProperty("detune"));
     }
 }
 
@@ -425,12 +518,12 @@ void MainComponent::paint(juce::Graphics& g)
 
     g.setFont(juce::FontOptions(18.0f));
     g.setColour(juce::Colours::white);
-    g.drawText("First JUCE Synth - Save / Load Preset Prototype",
+    g.drawText("First JUCE Synth - LFO Target Prototype",
         getLocalBounds().removeFromTop(45),
         juce::Justification::centred,
         true);
 
-    auto scopeArea = juce::Rectangle<int>(80, 590, 760, 90);
+    auto scopeArea = juce::Rectangle<int>(80, 745, 760, 90);
 
     g.setColour(juce::Colours::black.withAlpha(0.35f));
     g.fillRect(scopeArea);
@@ -467,25 +560,30 @@ void MainComponent::resized()
 {
     frequencySlider.setBounds(170, 65, 420, 35);
     volumeSlider.setBounds(170, 110, 420, 35);
-    waveformSelector.setBounds(170, 160, 420, 30);
-    filterSlider.setBounds(170, 205, 420, 35);
+    detuneSlider.setBounds(170, 155, 420, 35);
+    waveformSelector.setBounds(170, 205, 420, 30);
+    filterSlider.setBounds(170, 250, 420, 35);
 
-    attackSlider.setBounds(170, 255, 420, 35);
-    decaySlider.setBounds(170, 300, 420, 35);
-    sustainSlider.setBounds(170, 345, 420, 35);
-    releaseSlider.setBounds(170, 390, 420, 35);
+    attackSlider.setBounds(170, 300, 420, 35);
+    decaySlider.setBounds(170, 345, 420, 35);
+    sustainSlider.setBounds(170, 390, 420, 35);
+    releaseSlider.setBounds(170, 435, 420, 35);
 
-    powerButton.setBounds(170, 435, 120, 30);
+    lfoRateSlider.setBounds(170, 485, 420, 35);
+    lfoDepthSlider.setBounds(170, 530, 420, 35);
+    lfoTargetSelector.setBounds(170, 575, 420, 30);
 
-    bassPresetButton.setBounds(310, 435, 90, 30);
-    leadPresetButton.setBounds(410, 435, 90, 30);
-    padPresetButton.setBounds(510, 435, 90, 30);
-    pluckPresetButton.setBounds(610, 435, 90, 30);
+    powerButton.setBounds(170, 625, 120, 30);
 
-    savePresetButton.setBounds(710, 435, 70, 30);
-    loadPresetButton.setBounds(790, 435, 70, 30);
+    bassPresetButton.setBounds(310, 625, 90, 30);
+    leadPresetButton.setBounds(410, 625, 90, 30);
+    padPresetButton.setBounds(510, 625, 90, 30);
+    pluckPresetButton.setBounds(610, 625, 90, 30);
 
-    midiInputList.setBounds(170, 485, 420, 30);
+    savePresetButton.setBounds(710, 625, 70, 30);
+    loadPresetButton.setBounds(790, 625, 70, 30);
 
-    keyboardComponent.setBounds(80, 705, 760, 75);
+    midiInputList.setBounds(170, 675, 420, 30);
+
+    keyboardComponent.setBounds(80, 865, 760, 75);
 }

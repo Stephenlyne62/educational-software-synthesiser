@@ -52,6 +52,9 @@ private:
     juce::TextButton padPresetButton;
     juce::TextButton pluckPresetButton;
 
+    juce::ComboBox lfoTargetSelector;
+    juce::Label lfoTargetLabel;
+
     juce::Slider frequencySlider;
     juce::Label frequencyLabel;
 
@@ -87,6 +90,9 @@ private:
     juce::ComboBox midiInputList;
     juce::Label midiInputLabel;
 
+    juce::Slider detuneSlider;
+    juce::Label detuneLabel;
+
     std::vector<Voice> voices;
 
     juce::MidiKeyboardState keyboardState;
@@ -97,9 +103,6 @@ private:
     };
 
     std::unique_ptr<juce::MidiInput> midiInput;
-
-    float filterStateLeft = 0.0f;
-    float filterStateRight = 0.0f;
 
     bool noteOn = false;
 
