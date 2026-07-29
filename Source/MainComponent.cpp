@@ -3,7 +3,7 @@
 //==============================================================================
 MainComponent::MainComponent()
 {
-    setSize(900, 1100);
+    setSize(900, 800);
 
     voices.resize(8);
     waveformBuffer.resize(512, 0.0f);
@@ -579,7 +579,7 @@ void MainComponent::paint(juce::Graphics& g)
         juce::Justification::centred,
         true);
 
-    auto scopeArea = juce::Rectangle<int>(80, 790, 760, 90);
+    auto scopeArea = juce::Rectangle<int>(80, 560, 760, 100);
 
     g.setColour(juce::Colours::black.withAlpha(0.35f));
     g.fillRect(scopeArea);
@@ -614,35 +614,41 @@ void MainComponent::paint(juce::Graphics& g)
 
 void MainComponent::resized()
 {
-    frequencySlider.setBounds(170, 65, 420, 35);
-    volumeSlider.setBounds(170, 110, 420, 35);
-    detuneSlider.setBounds(170, 155, 420, 35);
-    waveformSelector.setBounds(170, 205, 420, 30);
-    filterSlider.setBounds(170, 250, 420, 35);
-    resonanceSlider.setBounds(170, 295, 420, 35);
-    noiseSlider.setBounds(170, 340, 420, 35);
+    // Left column
+    frequencySlider.setBounds(170, 65, 300, 35);
+    volumeSlider.setBounds(170, 110, 300, 35);
+    detuneSlider.setBounds(170, 155, 300, 35);
+    waveformSelector.setBounds(170, 205, 300, 30);
 
-    attackSlider.setBounds(170, 345, 420, 35);
-    decaySlider.setBounds(170, 390, 420, 35);
-    sustainSlider.setBounds(170, 435, 420, 35);
-    releaseSlider.setBounds(170, 480, 420, 35);
+    filterSlider.setBounds(170, 250, 300, 35);
+    resonanceSlider.setBounds(170, 295, 300, 35);
+    noiseSlider.setBounds(170, 340, 300, 35);
 
-    lfoRateSlider.setBounds(170, 485, 420, 35);
-    lfoDepthSlider.setBounds(170, 530, 420, 35);
-    lfoTargetSelector.setBounds(170, 575, 420, 30);
-    reverbSlider.setBounds(170, 620, 420, 35);
+    // Right column
+    attackSlider.setBounds(590, 65, 250, 35);
+    decaySlider.setBounds(590, 110, 250, 35);
+    sustainSlider.setBounds(590, 155, 250, 35);
+    releaseSlider.setBounds(590, 200, 250, 35);
 
-    powerButton.setBounds(170, 670, 120, 30);
+    lfoRateSlider.setBounds(590, 250, 250, 35);
+    lfoDepthSlider.setBounds(590, 295, 250, 35);
+    lfoTargetSelector.setBounds(590, 340, 250, 30);
 
-    bassPresetButton.setBounds(310, 670, 90, 30);
-    leadPresetButton.setBounds(410, 670, 90, 30);
-    padPresetButton.setBounds(510, 670, 90, 30);
-    pluckPresetButton.setBounds(610, 670, 90, 30);
+    reverbSlider.setBounds(590, 385, 250, 35);
 
-    savePresetButton.setBounds(710, 670, 70, 30);
-    loadPresetButton.setBounds(790, 670, 70, 30);
+    // Buttons
+    powerButton.setBounds(170, 430, 120, 30);
 
-    midiInputList.setBounds(170, 720, 420, 30);
+    bassPresetButton.setBounds(310, 430, 90, 30);
+    leadPresetButton.setBounds(410, 430, 90, 30);
+    padPresetButton.setBounds(510, 430, 90, 30);
+    pluckPresetButton.setBounds(610, 430, 90, 30);
 
-    keyboardComponent.setBounds(80, 910, 760, 75);
+    savePresetButton.setBounds(710, 430, 70, 30);
+    loadPresetButton.setBounds(790, 430, 70, 30);
+
+    midiInputList.setBounds(170, 480, 420, 30);
+
+    // Visuals
+    keyboardComponent.setBounds(80, 700, 760, 75);
 }
