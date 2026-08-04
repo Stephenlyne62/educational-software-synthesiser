@@ -1,57 +1,57 @@
+/**
+ * @file Envelope.h
+ * @brief Implements a sample-by-sample ADSR envelope using exponential
+ *        transitions between envelope stages.
+ *
+ * The envelope produces a normalised control signal across attack, decay,
+ * sustain, and release stages. Exponential smoothing is used for the
+ * time-varying stages to provide gradual transitions suitable for amplitude
+ * and filter modulation.
+ *
+ * Attack, decay, and release parameters are expressed in seconds. Sustain is
+ * represented as a normalised level between 0.0 and 1.0.
+ */
+
 #pragma once
 
 #include <cmath>
 #include <algorithm>
 
-// =============================================================================
-// Envelope.h — Exponential ADSR Envelope
-//
-// WHAT CHANGED FROM THE ORIGINAL:
-//
-// 1. EXPONENTIAL CURVES (most important change)
-//    The original used linear ramps for all four stages. Human hearing perceives
-//    loudness logarithmically, so a linear ramp sounds unnatural — it appears
-//    to "jump" at the start of attack and "drag" at the end of decay/release.
-//
-//    This version uses an exponential approach: each stage moves toward its
-//    target by multiplying the remaining distance by a coefficient per sample.
-//    This produces the smooth, natural-sounding curves found in hardware
-//    synthesisers and is the standard approach in professional audio software.
-//
-//    The coefficient is calculated from the time parameter using:
-//        coeff = exp(-log(9.0) / (timeInSeconds * sampleRate))
-//    This ensures the envelope reaches ~90% of its target in the specified time,
-//    which matches the perceptual expectation of the parameter.
-//
-// 2. RETRIGGER SUPPORT
-//    The original always reset to zero on noteOn, causing a click if a note
-//    is retriggered while the envelope is still in its release phase. This
-//    version retriggers from the current level, eliminating the click.
-//
-// 3. RELEASE FROM CURRENT LEVEL
-//    The original released from the sustain level only. If the note was
-//    released during attack or decay, the release would jump to sustain first,
-//    causing an audible glitch. This version releases from whatever the
-//    current level is at the moment noteOff() is called.
-//
-// 4. PARAMETER RANGES
-//    Attack, Decay, Release: time in seconds (e.g. 0.001 to 5.0)
-//    Sustain: level 0.0 to 1.0
-// =============================================================================
-
+ /**
+  * Implements a reusable ADSR control envelope.
+  *
+  * The class maintains an explicit state machine and generates one normalised
+  * envelope value per call to getNextValue(). Parameter and sample-rate changes
+  * trigger coefficient recalculation outside the sample-generation method.
+  */
 class Envelope
 {
 public:
+    /**
+     * Sets the active audio sample rate and recalculates all time-dependent
+     * smoothing coefficients.
+     *
+     * @param newSampleRate Active sample rate in hertz.
+     */
     void setSampleRate(double newSampleRate)
     {
         sampleRate = newSampleRate;
         recalculateCoefficients();
     }
 
+    /**
+     * Updates the ADSR parameters and constrains them to supported ranges.
+     *
+     * @param newAttack  Attack time in seconds.
+     * @param newDecay   Decay time in seconds.
+     * @param newSustain Normalised sustain level.
+     * @param newRelease Release time in seconds.
+     */
     void setParameters(float newAttack, float newDecay,
         float newSustain, float newRelease)
     {
-        // Use std:: equivalents — no JUCE dependency needed in this header
+        // Constrain incoming parameters using standard-library functions,
+        // keeping the envelope independent of JUCE-specific utility methods.
         attack = std::max(0.001f, newAttack);
         decay = std::max(0.001f, newDecay);
         sustain = std::max(0.0f, std::min(1.0f, newSustain));
@@ -59,22 +59,38 @@ public:
         recalculateCoefficients();
     }
 
+    /**
+     * Starts or retriggers the attack stage.
+     *
+     * The existing envelope level is preserved to avoid the discontinuity
+     * caused by resetting the signal abruptly to zero.
+     */
     void noteOn()
     {
-        // Retrigger from current level (no click on fast repeated notes)
+        // Retrigger from the current level rather than resetting the envelope.
         state = State::Attack;
-        // Do NOT reset level to 0 — retrigger from wherever we are
+
+        // Preserve the existing level so overlapping note events remain
+        // continuous.
     }
 
+    /**
+     * Starts the release stage when the envelope is active.
+     */
     void noteOff()
     {
         if (state != State::Idle)
         {
             state = State::Release;
-            releaseStartLevel = level; // Release from current level, not sustain
+            releaseStartLevel = level; // Preserve the level present when release begins
         }
     }
 
+    /**
+     * Advances the envelope state machine by one sample.
+     *
+     * @return Current normalised envelope level.
+     */
     float getNextValue()
     {
         switch (state)
@@ -84,7 +100,7 @@ public:
             break;
 
         case State::Attack:
-            // Exponential approach toward 1.0
+            // Approach the maximum envelope level using exponential smoothing.
             level = 1.0f - (1.0f - level) * attackCoeff;
 
             if (level >= 0.999f)
@@ -95,7 +111,7 @@ public:
             break;
 
         case State::Decay:
-            // Exponential approach toward sustain level
+            // Transition exponentially from the peak level toward sustain.
             level = sustain + (level - sustain) * decayCoeff;
 
             if (level <= sustain + 0.0001f)
@@ -110,7 +126,7 @@ public:
             break;
 
         case State::Release:
-            // Exponential approach toward 0.0 from wherever we started
+            // Attenuate the current envelope level exponentially toward silence.
             level = level * releaseCoeff;
 
             if (level <= 0.0001f)
@@ -124,15 +140,26 @@ public:
         return level;
     }
 
+    /**
+     * Indicates whether the envelope is currently outside the idle state.
+     *
+     * @return true while any envelope stage is active; otherwise false.
+     */
     bool isActive() const
     {
         return state != State::Idle;
     }
 
 private:
+    //==========================================================================
+    // Envelope state
+
     enum class State { Idle, Attack, Decay, Sustain, Release };
 
     State state = State::Idle;
+
+    //==========================================================================
+    // Timing and level parameters
 
     double sampleRate = 44100.0;
 
@@ -144,19 +171,34 @@ private:
     float level = 0.0f;
     float releaseStartLevel = 0.0f;
 
-    // Exponential coefficients — recalculated when parameters or sample rate change
+    //==========================================================================
+    // Precomputed exponential smoothing coefficients
+
     float attackCoeff = 0.0f;
     float decayCoeff = 0.0f;
     float releaseCoeff = 0.0f;
 
-    // Calculate per-sample exponential coefficient from a time in seconds.
-    // The envelope reaches ~90% of its target in 'timeSeconds'.
+    /**
+     * Calculates the per-sample smoothing coefficient for an exponential
+     * transition.
+     *
+     * After timeSeconds, approximately one ninth of the initial distance to
+     * the target remains. Stage-completion thresholds are evaluated separately.
+     *
+     * @param timeSeconds Requested transition time in seconds.
+     * @param sr          Active sample rate in hertz.
+     * @return Per-sample exponential smoothing coefficient.
+     */
     static float calcCoeff(float timeSeconds, double sr)
     {
         if (timeSeconds <= 0.0f || sr <= 0.0) return 0.0f;
         return (float)std::exp(-std::log(9.0) / ((double)timeSeconds * sr));
     }
 
+    /**
+     * Recalculates all smoothing coefficients after a parameter or sample-rate
+     * change.
+     */
     void recalculateCoefficients()
     {
         attackCoeff = calcCoeff(attack, sampleRate);
