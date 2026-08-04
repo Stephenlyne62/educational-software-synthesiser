@@ -41,74 +41,96 @@ public:
 private:
     double currentSampleRate = 0.0;
 
-    juce::TextButton savePresetButton;
-    juce::TextButton loadPresetButton;
+    //==========================================================================
+    // Oscillator / Waveform
+    juce::ComboBox waveformSelector;
+    juce::Label    waveformLabel;
 
-    void savePreset();
-    void loadPreset();
+    juce::Slider   frequencySlider;
+    juce::Label    frequencyLabel;
+
+    juce::Slider   detuneSlider;
+    juce::Label    detuneLabel;
+
+    juce::Slider   noiseSlider;
+    juce::Label    noiseLabel;
+
+    //==========================================================================
+    // Volume
+    juce::Slider   volumeSlider;
+    juce::Label    volumeLabel;
+
+    //==========================================================================
+    // Filter
+    juce::Slider   filterSlider;       // Cutoff in Hz (200–18000)
+    juce::Label    filterLabel;
+
+    juce::Slider   resonanceSlider;
+    juce::Label    resonanceLabel;
+
+    //==========================================================================
+    // Amplitude Envelope (ADSR)
+    juce::Slider   attackSlider;
+    juce::Label    attackLabel;
+    juce::Slider   decaySlider;
+    juce::Label    decayLabel;
+    juce::Slider   sustainSlider;
+    juce::Label    sustainLabel;
+    juce::Slider   releaseSlider;
+    juce::Label    releaseLabel;
+
+    //==========================================================================
+    // Filter Envelope (second ADSR routed to filter cutoff)
+    juce::Slider   filterEnvAmountSlider;   // Range: -8000 to +8000 Hz
+    juce::Label    filterEnvAmountLabel;
+    juce::Slider   filterAttackSlider;
+    juce::Label    filterAttackLabel;
+    juce::Slider   filterDecaySlider;
+    juce::Label    filterDecayLabel;
+    juce::Slider   filterSustainSlider;
+    juce::Label    filterSustainLabel;
+    juce::Slider   filterReleaseSlider;
+    juce::Label    filterReleaseLabel;
+
+    //==========================================================================
+    // LFO
+    juce::Slider   lfoRateSlider;
+    juce::Label    lfoRateLabel;
+    juce::Slider   lfoDepthSlider;
+    juce::Label    lfoDepthLabel;
+    juce::ComboBox lfoTargetSelector;
+    juce::Label    lfoTargetLabel;
+
+    //==========================================================================
+    // Reverb
+    juce::Slider   reverbSlider;
+    juce::Label    reverbLabel;
+
+    juce::Reverb            reverb;
+    juce::Reverb::Parameters reverbParameters;
+
+    //==========================================================================
+    // LFO engine
+    LFO lfo;
+
+    //==========================================================================
+    // Buttons
+    juce::ToggleButton powerButton;
 
     juce::TextButton bassPresetButton;
     juce::TextButton leadPresetButton;
     juce::TextButton padPresetButton;
     juce::TextButton pluckPresetButton;
 
-    juce::ComboBox lfoTargetSelector;
-    juce::Label lfoTargetLabel;
+    juce::TextButton savePresetButton;
+    juce::TextButton loadPresetButton;
 
-    juce::Slider frequencySlider;
-    juce::Label frequencyLabel;
-
-    juce::Slider volumeSlider;
-    juce::Label volumeLabel;
-
-    juce::Slider lfoRateSlider;
-    juce::Slider lfoDepthSlider;
-
-    juce::Label lfoRateLabel;
-    juce::Label lfoDepthLabel;
-
-    juce::Slider reverbSlider;
-    juce::Label reverbLabel;
-
-    juce::Reverb reverb;
-    juce::Reverb::Parameters reverbParameters;
-
-    LFO lfo;
-
-    juce::ComboBox waveformSelector;
-    juce::Label waveformLabel;
-
-    juce::Slider filterSlider;
-    juce::Label filterLabel;
-
-    juce::Slider resonanceSlider;
-    juce::Label resonanceLabel;
-    juce::Slider noiseSlider;
-    juce::Label noiseLabel;
-
-    juce::Slider attackSlider;
-    juce::Slider decaySlider;
-    juce::Slider sustainSlider;
-    juce::Slider releaseSlider;
-
-    juce::Label attackLabel;
-    juce::Label decayLabel;
-    juce::Label sustainLabel;
-    juce::Label releaseLabel;
-
-    juce::ToggleButton powerButton;
-
-
-
+    //==========================================================================
+    // MIDI
     juce::ComboBox midiInputList;
-    juce::Label midiInputLabel;
+    juce::Label    midiInputLabel;
 
-    juce::Slider detuneSlider;
-    juce::Label detuneLabel;
-
-    std::vector<Voice> voices;
-
-    juce::MidiKeyboardState keyboardState;
+    juce::MidiKeyboardState     keyboardState;
     juce::MidiKeyboardComponent keyboardComponent
     {
         keyboardState,
@@ -117,15 +139,22 @@ private:
 
     std::unique_ptr<juce::MidiInput> midiInput;
 
+    //==========================================================================
+    // Voices and state
+    std::vector<Voice> voices;
+
     bool noteOn = false;
 
     std::vector<float> waveformBuffer;
     int waveformBufferIndex = 0;
 
+    //==========================================================================
+    // Private helpers
     void setFrequencyFromMidiNote(int midiNoteNumber);
     Voice* findFreeVoice();
-
     void applyPreset(int presetNumber);
+    void savePreset();
+    void loadPreset();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };
